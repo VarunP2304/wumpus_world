@@ -52,7 +52,7 @@ The goal is simple: find the gold and return to the starting square to climb out
 To get a local copy up and running, simply clone the repository and open the `index.html` file in your browser.
 
 ```bash
-git clone [https://github.com/](https://github.com/)<your-github-username>/<your-repository-name>.git
+git clone https://github.com/VarunP2304/wumpus_world/tree/main
 
 
 
