@@ -2,7 +2,7 @@
 
 A thrilling and challenging implementation of the classic AI problem, Wumpus World. Navigate a dangerous cave, avoid deadly pits, hunt the monstrous Wumpus, and grab the glittering gold!
 
-**[Live Demo](https://<your-github-username>.github.io/<your-repository-name>/)**
+**[Live Demo](https://varunp2304.github.io/wumpus_world/)**
 
 ![Gameplay ScreenshotScreenshots of the Game:
 <img width="1920" height="1020" alt="image" src="https://github.com/user-attachments/assets/69f177da-5626-4a79-b18e-38865018cd8c" />
