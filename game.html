@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wumpus World Adventure</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .pixel-font {
+            font-family: 'Press Start 2P', cursive;
+        }
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(var(--grid-size, 4), 1fr);
+            grid-template-rows: repeat(var(--grid-size, 4), 1fr);
+            gap: 4px;
+        }
+        .cell {
+            aspect-ratio: 1 / 1;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .cell-content, .percept-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .agent {
+            transition: transform 0.3s linear;
+        }
+        .action-button {
+            transition: all 0.2s ease;
+        }
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .action-button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .modal {
+            transition: opacity 0.3s ease-in-out;
+        }
+        .wumpus-scream {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 5rem;
+            color: red;
+            opacity: 0;
+            animation: scream-fade 1.5s ease-out;
+            pointer-events: none;
+        }
+        @keyframes scream-fade {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(2); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
+        <!-- Game Board -->
+        <div class="flex-grow flex flex-col items-center justify-center">
+            <h1 class="text-4xl md:text-5xl font-bold mb-4 pixel-font text-amber-300">Wumpus World</h1>
+            <div id="game-container" class="relative w-full max-w-2xl aspect-square">
+                <div id="game-board" class="game-board w-full h-full bg-slate-800 p-2 rounded-lg shadow-2xl"></div>
+                 <div id="scream-container"></div>
+            </div>
+        </div>
+
+        <!-- Controls and Info Panel -->
+        <div class="w-full lg:w-96 bg-slate-800 rounded-lg shadow-2xl p-6 flex flex-col gap-6">
+            
+            <!-- Status Panel -->
+            <div>
+                <h2 class="text-2xl font-bold border-b-2 border-slate-600 pb-2 mb-3 text-amber-300 pixel-font">Status</h2>
+                <div class="grid grid-cols-2 gap-4 text-center">
+                    <div class="bg-slate-700 p-3 rounded-lg">
+                        <div class="text-sm text-slate-400">SCORE</div>
+                        <div id="score" class="text-2xl font-bold">0</div>
+                    </div>
+                    <div class="bg-slate-700 p-3 rounded-lg">
+                        <div class="text-sm text-slate-400">ARROWS</div>
+                        <div id="arrows" class="text-2xl font-bold">1</div>
+                    </div>
+                </div>
+                 <div class="bg-slate-700 p-3 rounded-lg mt-4 text-center">
+                        <div class="text-sm text-slate-400">GOLD</div>
+                        <div id="gold-status" class="text-2xl font-bold text-slate-500">None</div>
+                    </div>
+            </div>
+
+            <!-- Percepts Panel -->
+            <div>
+                <h2 class="text-2xl font-bold border-b-2 border-slate-600 pb-2 mb-3 text-amber-300 pixel-font">Percepts</h2>
+                <div id="percepts" class="bg-slate-900 min-h-[100px] p-4 rounded-lg text-lg text-cyan-300 italic flex items-center justify-center text-center">
+                    Welcome to the cave...
+                </div>
+            </div>
+
+            <!-- Actions Panel -->
+            <div>
+                <h2 class="text-2xl font-bold border-b-2 border-slate-600 pb-2 mb-3 text-amber-300 pixel-font">Actions</h2>
+                <div class="grid grid-cols-3 gap-2 mb-2">
+                    <div></div>
+                    <button id="move-forward" class="action-button bg-cyan-600 hover:bg-cyan-500 p-3 rounded-lg flex justify-center items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+                    </button>
+                    <div></div>
+                    <button id="turn-left" class="action-button bg-slate-600 hover:bg-slate-500 p-3 rounded-lg flex justify-center items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    </button>
+                     <div></div>
+                    <button id="turn-right" class="action-button bg-slate-600 hover:bg-slate-500 p-3 rounded-lg flex justify-center items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="shoot" class="action-button bg-red-600 hover:bg-red-500 p-3 rounded-lg">Shoot</button>
+                    <button id="grab" class="action-button bg-amber-500 hover:bg-amber-400 p-3 rounded-lg">Grab Gold</button>
+                </div>
+                <button id="climb" class="action-button bg-green-600 hover:bg-green-500 w-full p-3 rounded-lg mt-2">Climb Out</button>
+            </div>
+             <div>
+                <button id="new-game" class="action-button bg-indigo-600 hover:bg-indigo-500 w-full p-3 rounded-lg mt-2 font-bold">New Game</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Game Over Modal -->
+    <div id="modal" class="modal fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden opacity-0">
+        <div class="bg-slate-800 p-8 rounded-lg shadow-2xl text-center max-w-sm w-full">
+            <h2 id="modal-title" class="text-4xl font-bold mb-4 pixel-font">Game Over</h2>
+            <p id="modal-message" class="text-xl mb-6">The Wumpus ate you!</p>
+            <p class="text-lg mb-6">Final Score: <span id="modal-score" class="font-bold"></span></p>
+            <button id="restart-game" class="action-button bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-lg">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM ELEMENTS ---
+            const boardElement = document.getElementById('game-board');
+            const scoreElement = document.getElementById('score');
+            const arrowsElement = document.getElementById('arrows');
+            const goldStatusElement = document.getElementById('gold-status');
+            const perceptsElement = document.getElementById('percepts');
+            const moveButton = document.getElementById('move-forward');
+            const turnLeftButton = document.getElementById('turn-left');
+            const turnRightButton = document.getElementById('turn-right');
+            const shootButton = document.getElementById('shoot');
+            const grabButton = document.getElementById('grab');
+            const climbButton = document.getElementById('climb');
+            const newGameButton = document.getElementById('new-game');
+            const modal = document.getElementById('modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalMessage = document.getElementById('modal-message');
+            const modalScore = document.getElementById('modal-score');
+            const restartGameButton = document.getElementById('restart-game');
+            const screamContainer = document.getElementById('scream-container');
+
+            // --- GAME CONFIGURATION ---
+            const GRID_SIZE = 4;
+            const PIT_COUNT = 3;
+            const MOVE_COST = -1;
+            const SHOOT_COST = -10;
+            const WIN_BONUS = 1000;
+            const GOLD_BONUS = 100;
+
+            // --- SVG ICONS ---
+            const ICONS = {
+                agent: (rotation) => `<svg style="transform: rotate(${rotation}deg);" class="agent w-2/3 h-2/3 text-cyan-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 22 12 17 22 22z"/></svg>`,
+                wumpus: `<svg class="w-full h-full text-red-500 p-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 21.5c-2.3-2-4.5-2.8-7-2.8s-4.7.8-7 2.8"/><path d="M3.5 3.5c2.3 2 4.5 2.8 7 2.8s4.7-.8 7-2.8"/><path d="M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.9 4.9 1.4 1.4"/><path d="m17.7 17.7 1.4 1.4"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m4.9 19.1 1.4-1.4"/><path d="m17.7 6.3 1.4-1.4"/></svg>`,
+                pit: `<svg class="w-full h-full text-gray-400 p-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" /></svg>`,
+                gold: `<svg class="w-full h-full text-amber-300 p-1 animate-pulse" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L14.09 8.26L20 9.27L15.55 13.54L16.81 19.82L12 16.77L7.19 19.82L8.45 13.54L4 9.27L9.91 8.26L12 2z"/></svg>`,
+                stench: `<svg class="w-1/2 h-1/2 text-green-400 opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12c0-2.8.5-5.3 1.4-7.5"/><path d="M5 12c0 2.8.5 5.3 1.4 7.5"/><path d="M12 19c0-2.8-.5-5.3-1.4-7.5"/><path d="M12 19c0 2.8.5 5.3 1.4 7.5"/><path d="M19 12c0-2.8-.5-5.3-1.4-7.5"/><path d="M19 12c0 2.8-.5-5.3-1.4-7.5"/></svg>`,
+                breeze: `<svg class="w-1/2 h-1/2 text-sky-400 opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12H2M22 4H2M12 20H2"/></svg>`,
+            };
+
+            // --- GAME STATE ---
+            let state;
+
+            // --- GAME LOGIC ---
+            function createEmptyGrid() {
+                return Array.from({ length: GRID_SIZE }, () =>
+                    Array.from({ length: GRID_SIZE }, () => ({
+                        visited: false,
+                        hasWumpus: false,
+                        hasPit: false,
+                        hasGold: false,
+                        hasStench: false,
+                        hasBreeze: false,
+                    }))
+                );
+            }
+
+            function initializeGame() {
+                state = {
+                    grid: createEmptyGrid(),
+                    agent: { x: 0, y: GRID_SIZE - 1, dir: 'E', hasArrow: true, hasGold: false, isAlive: true },
+                    wumpus: { x: -1, y: -1, isAlive: true },
+                    gold: { x: -1, y: -1 },
+                    pits: [],
+                    score: 0,
+                    gameOver: false,
+                    gameMessage: 'Welcome to the Wumpus World!'
+                };
+
+                // Place items
+                placeItem('wumpus');
+                placeItem('gold');
+                for (let i = 0; i < PIT_COUNT; i++) {
+                    placeItem('pit');
+                }
+
+                // Calculate percepts
+                for (let y = 0; y < GRID_SIZE; y++) {
+                    for (let x = 0; x < GRID_SIZE; x++) {
+                        if (state.grid[y][x].hasWumpus) {
+                            getNeighbors(x, y).forEach(({ x: nx, y: ny }) => {
+                                state.grid[ny][nx].hasStench = true;
+                            });
+                        }
+                        if (state.grid[y][x].hasPit) {
+                            getNeighbors(x, y).forEach(({ x: nx, y: ny }) => {
+                                state.grid[ny][nx].hasBreeze = true;
+                            });
+                        }
+                    }
+                }
+                
+                state.grid[state.agent.y][state.agent.x].visited = true;
+                updatePercepts();
+                render();
+            }
+            
+            function getNeighbors(x, y) {
+                const neighbors = [];
+                if (x > 0) neighbors.push({ x: x - 1, y: y });
+                if (x < GRID_SIZE - 1) neighbors.push({ x: x + 1, y: y });
+                if (y > 0) neighbors.push({ x: x, y: y - 1 });
+                if (y < GRID_SIZE - 1) neighbors.push({ x: x, y: y + 1 });
+                return neighbors;
+            }
+
+            function placeItem(item) {
+                let x, y;
+                do {
+                    x = Math.floor(Math.random() * GRID_SIZE);
+                    y = Math.floor(Math.random() * GRID_SIZE);
+                } while ((x === 0 && y === GRID_SIZE - 1) || isOccupied(x, y));
+
+                if (item === 'wumpus') {
+                    state.grid[y][x].hasWumpus = true;
+                    state.wumpus = { x, y, isAlive: true };
+                } else if (item === 'gold') {
+                    state.grid[y][x].hasGold = true;
+                    state.gold = { x, y };
+                } else if (item === 'pit') {
+                    state.grid[y][x].hasPit = true;
+                    state.pits.push({ x, y });
+                }
+            }
+            
+            function isOccupied(x, y) {
+                const cell = state.grid[y][x];
+                return cell.hasWumpus || cell.hasPit || cell.hasGold;
+            }
+
+            function handleTurn(direction) {
+                if (state.gameOver) return;
+                const dirs = ['N', 'E', 'S', 'W'];
+                const currentDirIndex = dirs.indexOf(state.agent.dir);
+                if (direction === 'left') {
+                    state.agent.dir = dirs[(currentDirIndex + 3) % 4];
+                } else {
+                    state.agent.dir = dirs[(currentDirIndex + 1) % 4];
+                }
+                render();
+            }
+
+            function handleMoveForward() {
+                if (state.gameOver) return;
+                let { x, y, dir } = state.agent;
+                let newX = x, newY = y;
+
+                if (dir === 'N') newY -= 1;
+                else if (dir === 'E') newX += 1;
+                else if (dir === 'S') newY += 1;
+                else if (dir === 'W') newX -= 1;
+
+                state.score += MOVE_COST;
+
+                if (newX < 0 || newX >= GRID_SIZE || newY < 0 || newY >= GRID_SIZE) {
+                    state.gameMessage = "Ouch! You bumped into a wall.";
+                    render();
+                    return;
+                }
+                
+                state.agent.x = newX;
+                state.agent.y = newY;
+                state.grid[newY][newX].visited = true;
+
+                // Check for hazards
+                const currentCell = state.grid[newY][newX];
+                if (currentCell.hasWumpus && state.wumpus.isAlive) {
+                    endGame(false, "You were devoured by the hungry Wumpus!");
+                } else if (currentCell.hasPit) {
+                    endGame(false, "You fell into a bottomless pit!");
+                } else {
+                     updatePercepts();
+                }
+                render();
+            }
+            
+            function handleGrab() {
+                if(state.gameOver) return;
+                const { x, y } = state.agent;
+                if (state.grid[y][x].hasGold) {
+                    state.agent.hasGold = true;
+                    state.grid[y][x].hasGold = false; // Remove gold from grid
+                    state.score += GOLD_BONUS;
+                    state.gameMessage = "You found the gold! Now, escape!";
+                } else {
+                    state.gameMessage = "There is no gold here.";
+                }
+                render();
+            }
+            
+            function handleShoot() {
+                if(state.gameOver || !state.agent.hasArrow) return;
+                
+                state.agent.hasArrow = false;
+                state.score += SHOOT_COST;
+                
+                let { x, y, dir } = state.agent;
+                let hit = false;
+                
+                if (dir === 'E') {
+                    if (state.wumpus.isAlive && state.wumpus.y === y && state.wumpus.x > x) hit = true;
+                } else if (dir === 'W') {
+                    if (state.wumpus.isAlive && state.wumpus.y === y && state.wumpus.x < x) hit = true;
+                } else if (dir === 'N') {
+                    if (state.wumpus.isAlive && state.wumpus.x === x && state.wumpus.y < y) hit = true;
+                } else if (dir === 'S') {
+                    if (state.wumpus.isAlive && state.wumpus.x === x && state.wumpus.y > y) hit = true;
+                }
+
+                if (hit) {
+                    state.wumpus.isAlive = false;
+                    const {x: wx, y: wy} = state.wumpus;
+                    state.grid[wy][wx].hasWumpus = false;
+                     // Remove all stench
+                    for (let r = 0; r < GRID_SIZE; r++) {
+                        for (let c = 0; c < GRID_SIZE; c++) {
+                            state.grid[r][c].hasStench = false;
+                        }
+                    }
+                    // Recalculate stench for any other wumpuses (future proofing)
+                    // For now, it just clears all stench
+                    state.gameMessage = "A terrible scream echoes through the caves...";
+                    showWumpusScream();
+                    updatePercepts();
+                } else {
+                    state.gameMessage = "Your arrow disappears into the darkness.";
+                }
+                render();
+            }
+            
+            function handleClimb() {
+                if (state.gameOver) return;
+                if (state.agent.x === 0 && state.agent.y === GRID_SIZE - 1) {
+                    if (state.agent.hasGold) {
+                        state.score += WIN_BONUS;
+                        endGame(true, "You escaped with the gold! A true adventurer!");
+                    } else {
+                        endGame(false, "You climbed out, but left the gold behind. A coward's exit.");
+                    }
+                } else {
+                    state.gameMessage = "You can only climb out from the entrance.";
+                    render();
+                }
+            }
+            
+            function updatePercepts() {
+                const cell = state.grid[state.agent.y][state.agent.x];
+                let perceptMessages = [];
+                if (cell.hasStench) perceptMessages.push("You smell a horrible stench.");
+                if (cell.hasBreeze) perceptMessages.push("You feel a cool breeze.");
+                if (cell.hasGold) perceptMessages.push("You see something glitter.");
+
+                if (perceptMessages.length === 0) {
+                    state.gameMessage = "The air is still and silent here.";
+                } else {
+                    state.gameMessage = perceptMessages.join(' ');
+                }
+            }
+            
+            function endGame(win, message) {
+                state.gameOver = true;
+                state.agent.isAlive = !win && message.includes("Wumpus") || message.includes("pit");
+                state.gameMessage = message;
+
+                modalTitle.textContent = win ? "You Won!" : "Game Over";
+                modalTitle.className = `text-4xl font-bold mb-4 pixel-font ${win ? 'text-green-400' : 'text-red-500'}`;
+                modalMessage.textContent = message;
+                modalScore.textContent = state.score;
+                modal.classList.remove('hidden');
+                setTimeout(() => modal.classList.remove('opacity-0'), 10);
+                render();
+            }
+
+            function showWumpusScream() {
+                const scream = document.createElement('div');
+                scream.className = 'wumpus-scream pixel-font';
+                scream.textContent = 'SCREAM!';
+                screamContainer.appendChild(scream);
+                scream.addEventListener('animationend', () => {
+                    scream.remove();
+                });
+            }
+            
+            // --- RENDER LOGIC ---
+            function render() {
+                // Render Board
+                boardElement.innerHTML = '';
+                boardElement.style.setProperty('--grid-size', GRID_SIZE);
+                
+                for (let y = 0; y < GRID_SIZE; y++) {
+                    for (let x = 0; x < GRID_SIZE; x++) {
+                        const cell = document.createElement('div');
+                        const cellData = state.grid[y][x];
+                        
+                        let cellClasses = 'cell rounded-md ';
+                        if (cellData.visited) {
+                            cellClasses += 'bg-slate-700';
+                        } else if (state.gameOver) {
+                            cellClasses += 'bg-slate-800'; // Reveal all on game over
+                        } else {
+                            cellClasses += 'bg-slate-900';
+                        }
+                        cell.className = cellClasses;
+
+                        const cellContent = document.createElement('div');
+                        cellContent.className = 'cell-content';
+                        
+                        const perceptOverlay = document.createElement('div');
+                        perceptOverlay.className = 'percept-overlay';
+                        
+                        if(cellData.visited || state.gameOver) {
+                            // Render items
+                            if (cellData.hasPit) cellContent.innerHTML += ICONS.pit;
+                            if (cellData.hasGold) cellContent.innerHTML += ICONS.gold;
+                            if (cellData.hasWumpus && (state.gameOver || !state.wumpus.isAlive)) {
+                                const wumpusIcon = document.createElement('div');
+                                wumpusIcon.innerHTML = ICONS.wumpus;
+                                if (!state.wumpus.isAlive) wumpusIcon.style.opacity = '0.4';
+                                cellContent.appendChild(wumpusIcon);
+                            }
+
+                            // Render percepts
+                            if (cellData.hasStench && state.wumpus.isAlive) perceptOverlay.innerHTML += ICONS.stench;
+                            if (cellData.hasBreeze) perceptOverlay.innerHTML += ICONS.breeze;
+                        }
+
+                        // Render Agent
+                        if (state.agent.x === x && state.agent.y === y && state.agent.isAlive) {
+                             const dirMap = { 'N': 0, 'E': 90, 'S': 180, 'W': 270 };
+                             cellContent.innerHTML += ICONS.agent(dirMap[state.agent.dir]);
+                        }
+                        
+                        cell.appendChild(cellContent);
+                        cell.appendChild(perceptOverlay);
+                        boardElement.appendChild(cell);
+                    }
+                }
+
+                // Render Status
+                scoreElement.textContent = state.score;
+                arrowsElement.textContent = state.agent.hasArrow ? 1 : 0;
+                if (state.agent.hasGold) {
+                    goldStatusElement.textContent = 'Acquired';
+                    goldStatusElement.className = 'text-2xl font-bold text-amber-300';
+                } else {
+                    goldStatusElement.textContent = 'None';
+                    goldStatusElement.className = 'text-2xl font-bold text-slate-500';
+                }
+                
+                // Render Percepts
+                perceptsElement.textContent = state.gameMessage;
+
+                // Update Button States
+                const buttons = [moveButton, turnLeftButton, turnRightButton, shootButton, grabButton, climbButton];
+                if (state.gameOver) {
+                    buttons.forEach(b => b.disabled = true);
+                } else {
+                    buttons.forEach(b => b.disabled = false);
+                    shootButton.disabled = !state.agent.hasArrow;
+                    grabButton.disabled = !state.grid[state.agent.y][state.agent.x].hasGold;
+                    climbButton.disabled = !(state.agent.x === 0 && state.agent.y === GRID_SIZE - 1);
+                }
+            }
+
+            // --- EVENT LISTENERS ---
+            moveButton.addEventListener('click', handleMoveForward);
+            turnLeftButton.addEventListener('click', () => handleTurn('left'));
+            turnRightButton.addEventListener('click', () => handleTurn('right'));
+            shootButton.addEventListener('click', handleShoot);
+            grabButton.addEventListener('click', handleGrab);
+            climbButton.addEventListener('click', handleClimb);
+            
+            const startNewGame = () => {
+                 modal.classList.add('opacity-0');
+                 setTimeout(() => modal.classList.add('hidden'), 300);
+                 initializeGame();
+            }
+
+            newGameButton.addEventListener('click', startNewGame);
+            restartGameButton.addEventListener('click', startNewGame);
+
+            // Keyboard controls
+            window.addEventListener('keydown', (e) => {
+                if(modal.classList.contains('hidden')) { // only handle keys if modal is not shown
+                    switch(e.key) {
+                        case 'ArrowUp':
+                        case 'w':
+                            handleMoveForward();
+                            break;
+                        case 'ArrowLeft':
+                        case 'a':
+                            handleTurn('left');
+                            break;
+                        case 'ArrowRight':
+                        case 'd':
+                            handleTurn('right');
+                            break;
+                        case ' ': // Spacebar
+                        case 's':
+                            e.preventDefault(); // prevent page scroll
+                            handleShoot();
+                            break;
+                        case 'g':
+                            handleGrab();
+                            break;
+                        case 'c':
+                            handleClimb();
+                            break;
+                    }
+                }
+            });
+
+            // --- INITIALIZE ---
+            initializeGame();
+        });
+    </script>
+</body>
+</html>
