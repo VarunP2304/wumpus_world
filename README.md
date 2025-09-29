@@ -4,7 +4,7 @@ A thrilling and challenging implementation of the classic AI problem, Wumpus Wor
 
 **[Live Demo](https://varunp2304.github.io/wumpus_world/)**
 
-![Gameplay ScreenshotScreenshots of the Game:
+Screenshots of the Game:
 <img width="1920" height="1020" alt="image" src="https://github.com/user-attachments/assets/69f177da-5626-4a79-b18e-38865018cd8c" />
 
 <img width="1920" height="1020" alt="image" src="https://github.com/user-attachments/assets/51e7ab2a-43d1-4508-a772-0a74410cdb39" />
